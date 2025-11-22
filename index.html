@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pixel Seoul — Ars × Lena</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #05070c;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      image-rendering: pixelated;
+    }
+  </style>
+  <!-- Phaser 3 (официальный CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.js"></script>
+</head>
+<body>
+<script>
+  // Базовые настройки игры
+  const GAME_WIDTH = 320;
+  const GAME_HEIGHT = 180;
+
+  class SceneIntro extends Phaser.Scene {
+    constructor() {
+        super('SceneIntro');
+    }
+
+    preload() {
+        this.load.setPath('assets/');
+        this.load.image('intro_photo', 'intro_photo.png');
+    }
+
+    create() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        // ФОТО НА ФОНЕ
+        this.add.image(0, 0, 'intro_photo')
+            .setOrigin(0, 0)
+            .setDisplaySize(W, H);
+
+        // ЛЁГКОЕ ЗАТЕМНЕНИЕ (чтобы текст был читаем)
+        this.add.rectangle(0, 0, W, H, 0x000000, 0.45)
+            .setOrigin(0, 0);
+
+        // ТИТРЫ
+        this.add.text(W/2, 52, 'PIXEL SEOUL', {
+            fontFamily: 'monospace',
+            fontSize: '18px',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+
+        this.add.text(W/2, 80, 'Ars × Lena', {
+            fontFamily: 'monospace',
+            fontSize: '12px',
+            color: '#d1d5db'
+        }).setOrigin(0.5);
+
+        this.add.text(W/2, H - 60, 'ENTER — начать', {
+            fontFamily: 'monospace',
+            fontSize: '11px',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+
+        this.add.text(W/2, H - 36, 'стрелки — движение · SPACE — действие', {
+            fontFamily: 'monospace',
+            fontSize: '9px',
+            color: '#e5e7eb'
+        }).setOrigin(0.5);
+
+        // INPUT
+        const keys = this.input.keyboard;
+        keys.once('keydown-ENTER', () => this.scene.start('SceneGangnamRain'));
+        keys.once('keydown-SPACE', () => this.scene.start('SceneGangnamRain'));
+    }
+}
+
+
+  class SceneGangnamRain extends Phaser.Scene {
+    constructor() {
+        super('SceneGangnamRain');
+    }
+
+    preload() {
+        this.load.setPath('assets/');
+
+        // BACKGROUND + CHARACTERS
+        this.load.image('gangnam_bg', 'gangnam_rain.png');
+        this.load.image('ars', 'ars_rain.png');
+        this.load.image('lena', 'lena_camera.png');
+        this.load.image('umbrella', 'umbrella.png');
+
+        // RAIN
+        this.load.image('rain1', 'rain_1.png');
+        this.load.image('rain2', 'rain_2.png');
+        this.load.image('rain3', 'rain_3.png');
+    }
+
+    create() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        //---------------------------------------
+        // BACKGROUND
+        //---------------------------------------
+        this.bg = this.add.image(0, 0, 'gangnam_bg').setOrigin(0, 0);
+
+        //---------------------------------------
+        // GROUND LEVEL (characters stand here)
+        //---------------------------------------
+        const groundY = 225; // выровнено под твой фон
+
+        //---------------------------------------
+        // LENA (LEFT SIDE)
+        //---------------------------------------
+        this.lena = this.add.image(110, groundY, 'lena')
+            .setScale(1.35)
+            .setOrigin(0.5, 1); // ноги стоят на земле
+
+        //---------------------------------------
+        // ARS (PLAYER)
+        //---------------------------------------
+        this.ars = this.add.image(W / 2, groundY, 'ars')
+            .setScale(1.65)
+            .setOrigin(0.5, 1);
+
+        //---------------------------------------
+        // INPUT KEYS
+        //---------------------------------------
+        this.keys = this.input.keyboard.addKeys({
+            left: Phaser.Input.Keyboard.KeyCodes.LEFT,
+            right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+            space: Phaser.Input.Keyboard.KeyCodes.SPACE
+        });
+
+        //---------------------------------------
+        // RAIN PARTICLES
+        //---------------------------------------
+        this.rainGroup = this.add.group();
+
+        for (let i = 0; i < 55; i++) {
+            let key = Phaser.Math.RND.pick(['rain1', 'rain2', 'rain3']);
+
+            let drop = this.add.image(
+                Phaser.Math.Between(0, W),
+                Phaser.Math.Between(0, H),
+                key
+            )
+            .setScale(0.15)
+            .setAlpha(0.45);
+
+            this.rainGroup.add(drop);
+        }
+
+        //---------------------------------------
+        // SNAP TEXT
+        //---------------------------------------
+        this.prompt = this.add.text(W / 2, H - 22, "НАЙДИ ЗОНТ", {
+            fontFamily: 'monospace',
+            fontSize: '16px',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+
+        //---------------------------------------
+        // UMBRELLA (pickup)
+        //---------------------------------------
+        this.hasUmbrella = false;
+        this.umbrella = this.add.image(W / 2 + 110, groundY, 'umbrella')
+            .setOrigin(0.5, 1)
+            .setScale(0.6)
+            .setDepth(2);
+    }
+
+    update() {
+        const speed = 1.4;
+
+        //---------------------------------------
+        // MOVE ARS LEFT/RIGHT
+        //---------------------------------------
+        if (this.keys.left.isDown) {
+            this.ars.x -= speed;
+            this.ars.setFlipX(false); // смотрит влево
+        }
+        if (this.keys.right.isDown) {
+            this.ars.x += speed;
+            this.ars.setFlipX(true); // смотрит вправо
+        }
+
+        //---------------------------------------
+        // RAIN FALL LOOP
+        //---------------------------------------
+        this.rainGroup.children.iterate(drop => {
+            drop.y += 0.8;
+            if (drop.y > this.game.config.height) {
+                drop.y = -10;
+                drop.x = Phaser.Math.Between(0, this.game.config.width);
+            }
+        });
+
+        //---------------------------------------
+        // UMBRELLA INTERACT
+        //---------------------------------------
+        if (!this.hasUmbrella && this.umbrella) {
+            const nearUmbrella = Phaser.Math.Distance.Between(
+                this.ars.x, this.ars.y,
+                this.umbrella.x, this.umbrella.y
+            ) < 26;
+
+            if (nearUmbrella) {
+                this.prompt.setText("SPACE — TAKE UMBRELLA");
+                if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
+                    this.pickUmbrella();
+                }
+            } else {
+                this.prompt.setText("НАЙДИ ЗОНТ");
+            }
+            return;
+        }
+
+        //---------------------------------------
+        // SNAP FLASH → CAM SCENE (only with umbrella)
+        //---------------------------------------
+        this.prompt.setText("SPACE — SNAP");
+        if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
+            this.cameras.main.flash(200, 255, 255, 255);
+            this.time.delayedCall(220, () => {
+                this.cameras.main.fadeOut(450, 0, 0, 0);
+            });
+            this.time.delayedCall(700, () => {
+                this.scene.start('SceneCamera');
+            });
+        }
+    }
+
+    pickUmbrella() {
+        this.hasUmbrella = true;
+        if (this.umbrella) {
+            this.tweens.add({
+                targets: this.umbrella,
+                y: this.umbrella.y - 8,
+                alpha: 0,
+                duration: 180,
+                onComplete: () => this.umbrella.destroy()
+            });
+        }
+        this.prompt.setText("SPACE — SNAP");
+    }
+}
+
+
+class SceneCamera extends Phaser.Scene {
+    constructor() {
+        super('SceneCamera');
+    }
+
+    preload() {
+        this.load.setPath('assets/');
+        this.load.image('gangnam_bg', 'gangnam_rain.png');
+        this.load.image('camera_frame', 'camera_frame.png');
+        this.load.image('ars_front', 'front_ars.png');
+    }
+
+    create() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        this.cameras.main.setBackgroundColor('#05070c');
+        this.cameras.main.fadeIn(300);
+
+        // Фон — тот же дождливый Гангнам
+        this.add.image(0, 0, 'gangnam_bg')
+            .setOrigin(0, 0)
+            .setDisplaySize(W, H)
+            .setDepth(0);
+
+        // Рамка камеры
+        this.frame = this.add.image(W / 2, H / 2, 'camera_frame')
+            .setOrigin(0.5)
+            .setScale(0.9)
+            .setDepth(5);
+
+        // Персонаж спереди
+        this.subject = this.add.image(W / 2, H / 2 - 10, 'ars_front')
+            .setScale(0.5)
+            .setDepth(6);
+
+        // Управление
+        this.keys = this.input.keyboard.addKeys({
+            left: Phaser.Input.Keyboard.KeyCodes.LEFT,
+            right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+            up: Phaser.Input.Keyboard.KeyCodes.UP,
+            down: Phaser.Input.Keyboard.KeyCodes.DOWN,
+            space: Phaser.Input.Keyboard.KeyCodes.SPACE
+        });
+
+        this.prompt = this.add.text(W / 2, H - 24, "ВЫРОВНЯЙСЯ В ЦЕНТРЕ", {
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            color: '#ffffff'
+        }).setOrigin(0.5).setDepth(10);
+
+        this.tolerance = 8;
+    }
+
+    update() {
+        const speed = 1.4;
+        if (this.keys.left.isDown) this.subject.x -= speed;
+        if (this.keys.right.isDown) this.subject.x += speed;
+        if (this.keys.up.isDown) this.subject.y -= speed;
+        if (this.keys.down.isDown) this.subject.y += speed;
+
+        const dist = Phaser.Math.Distance.Between(
+            this.subject.x, this.subject.y,
+            this.game.config.width / 2,
+            this.game.config.height / 2 - 6
+        );
+
+        const aligned = dist < this.tolerance;
+        this.prompt.setText(aligned ? "SPACE — SNAP" : "ВЫРОВНЯЙСЯ В ЦЕНТРЕ");
+
+        if (aligned && Phaser.Input.Keyboard.JustDown(this.keys.space)) {
+            this.takePhoto();
+        }
+    }
+
+    takePhoto() {
+        this.cameras.main.flash(200, 255, 255, 255);
+        this.time.delayedCall(220, () => {
+            this.cameras.main.fadeOut(450, 0, 0, 0);
+        });
+        this.time.delayedCall(700, () => {
+            this.scene.start('SceneCinema');
+        });
+    }
+}
+
+
+class SceneCinema extends Phaser.Scene {
+    constructor() {
+        super('SceneCinema');
+    }
+
+    preload() {
+        this.load.setPath('assets/');
+        this.load.image('cinema_bg', 'cinema_bg.png');
+    }
+
+    create() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        this.cameras.main.fadeIn(500);
+
+        //---------------------------------------
+        // BACKGROUND
+        //---------------------------------------
+        this.add.image(0, 0, 'cinema_bg').setOrigin(0, 0);
+
+        //---------------------------------------
+        // TITLE
+        //---------------------------------------
+        this.add.text(W/2, 20, "CHOOSE A MOVIE", {
+            fontFamily: 'monospace',
+            fontSize: "14px",
+            color: "#ffffff"
+        }).setOrigin(0.5);
+
+        //---------------------------------------
+        // MOVIE NAMES
+        //---------------------------------------
+        this.movies = [
+    {
+        name: "One Battle\nAfter Another",
+        correct: true,   // <-- теперь ЭТО правильный фильм
+        x: W/2 - 110
+    },
+    {
+        name: "Unrelenting\nBattles",
+        correct: false,
+        x: W/2
+    },
+    {
+        name: "Silent Moments\nof Seoul",
+        correct: false,
+        x: W/2 + 110
+    }
+];
+
+
+        this.posters = [];
+
+        this.movies.forEach(movie => {
+            // фон
+            let box = this.add.rectangle(
+                movie.x, H/2 - 15,
+                110, 60,
+                0x000000,
+                0.45
+            ).setOrigin(0.5).setDepth(1);
+
+            // текст
+            let text = this.add.text(
+                movie.x, H/2 - 15,
+                movie.name,
+                {
+                    fontFamily: "monospace",
+                    fontSize: "12px",
+                    color: "#ffffff",
+                    align: "center"
+                }
+            )
+            .setOrigin(0.5)
+            .setInteractive()
+            .setDepth(2);
+
+            this.posters.push({ box, text, correct: movie.correct });
+
+            // hover
+            text.on("pointerover", () => {
+                this.tweens.add({
+                    targets: [text, box],
+                    scale: 1.15,
+                    duration: 120,
+                    ease: "Sine.easeOut"
+                });
+            });
+
+            text.on("pointerout", () => {
+                this.tweens.add({
+                    targets: [text, box],
+                    scale: 1.0,
+                    duration: 120
+                });
+            });
+
+            // click
+            text.on("pointerdown", () => {
+                this.selectMovie(movie.correct, text, box);
+            });
+        });
+
+        //---------------------------------------
+        // instruction
+        //---------------------------------------
+        this.pressText = this.add.text(W/2, H - 25,
+            "CHOOSE A MOVIE",
+            {
+                fontFamily: "monospace",
+                fontSize: "14px",
+                color: "#ffffff"
+            })
+            .setOrigin(0.5);
+    }
+
+    //---------------------------------------
+    // Movie selection → transition
+    //---------------------------------------
+    selectMovie(isCorrect, textObj, boxObj) {
+
+        if (!isCorrect) {
+            // неправильный
+            this.tweens.add({
+                targets: [textObj, boxObj],
+                x: textObj.x + 4,
+                duration: 60,
+                yoyo: true,
+                repeat: 3
+            });
+            return;
+        }
+
+        // ПРАВИЛЬНЫЙ ФИЛЬМ — эффект победы
+        this.cameras.main.flash(300, 255, 220, 120);
+
+        // золотое свечение
+        let glow = this.add.circle(
+            textObj.x,
+            textObj.y,
+            10,
+            0xfcd34d,
+            0.5
+        ).setDepth(0);
+
+        this.tweens.add({
+            targets: glow,
+            radius: 90,
+            alpha: 0,
+            duration: 600,
+            ease: "Sine.easeOut"
+        });
+
+        // nice text
+        let winText = this.add.text(
+            this.game.config.width / 2,
+            50,
+            "Nice choice",
+            {
+                fontFamily: 'monospace',
+                fontSize: "16px",
+                color: "#ffffff"
+            }
+        ).setOrigin(0.5).setAlpha(0);
+
+        this.tweens.add({
+            targets: winText,
+            alpha: 1,
+            duration: 400
+        });
+
+        // fade out
+        this.time.delayedCall(900, () => {
+            this.cameras.main.fadeOut(600, 0, 0, 0);
+        });
+
+        // переход
+        this.time.delayedCall(1500, () => {
+            this.scene.start("ScenePasta");
+        });
+    }
+}
+
+
+
+
+class ScenePasta extends Phaser.Scene {
+    constructor() {
+        super('ScenePasta');
+    }
+
+    preload() {
+        this.load.setPath('assets/');
+
+        this.load.image('rolling_bg', 'rolling_bg.png');
+        this.load.image('plate', 'pasta_plate.png');
+
+        this.load.image('ing_pasta', 'ingredient_pasta.png');
+        this.load.image('ing_tomato', 'ingredient_tomato.png');
+        this.load.image('ing_basil', 'ingredient_basil.png');
+        this.load.image('ing_cheese', 'ingredient_cheese.png');
+
+        // готовая паста
+        this.load.image('pasta_final', 'pasta_final.png');
+    }
+
+    create() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        //---------------------------------------
+        // BACKGROUND
+        //---------------------------------------
+        this.add.image(0, 0, 'rolling_bg').setOrigin(0, 0);
+
+        //---------------------------------------
+        // PLATE
+        //---------------------------------------
+        this.plate = this.add.image(W/2, H/2 - 20, 'plate')  
+    .setScale(1.85)    // БЫЛО 1.2 — теперь больше  
+    .setDepth(2);
+
+
+        //---------------------------------------
+        // INGREDIENTS
+        //---------------------------------------
+        this.ingredients = [
+            { key: 'ing_pasta', x: 70, y: 70 },
+            { key: 'ing_tomato', x: W - 70, y: 70 },
+            { key: 'ing_basil', x: 70, y: H - 70 },
+            { key: 'ing_cheese', x: W - 70, y: H - 70 }
+        ];
+
+        this.collected = 0;
+        this.totalNeeded = this.ingredients.length;
+
+        // Create draggable ingredients
+        this.ingredients.forEach(ing => {
+            const obj = this.add.image(ing.x, ing.y, ing.key)
+                .setInteractive()
+                .setScale(1.3)
+                .setDepth(3);
+
+            this.input.setDraggable(obj);
+
+            obj.on('drag', (pointer, dragX, dragY) => {
+                obj.x = dragX;
+                obj.y = dragY;
+            });
+
+            obj.on('dragend', () => {
+                const dx = obj.x - this.plate.x;
+                const dy = obj.y - this.plate.y; 
+                const dist = Math.sqrt(dx*dx + dy*dy);
+
+                if (dist < 60) {
+                    this.collectIngredient(obj);
+                }
+            });
+        });
+
+        //---------------------------------------
+        // READY PASTA (hidden)
+        //---------------------------------------
+        this.finalPasta = this.add.image(this.plate.x, this.plate.y - 10, 'pasta_final')
+            .setScale(1.4)
+            .setAlpha(0)
+            .setDepth(5);
+
+        //---------------------------------------
+        // TEXT
+        //---------------------------------------
+        this.text = this.add.text(W/2, H - 24, "DRAG INGREDIENTS → INTO THE PLATE", {
+            fontFamily: 'monospace',
+            fontSize: '16px',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+    }
+
+    collectIngredient(obj) {
+        obj.disableInteractive();
+        obj.setVisible(false);
+
+        this.collected++;
+
+        // plate glow
+        this.tweens.add({
+            targets: this.plate,
+            scale: 1.3,
+            duration: 120,
+            yoyo: true,
+            ease: 'Sine.easeInOut'
+        });
+
+        if (this.collected >= this.totalNeeded) {
+            this.showFinalPasta();
+        }
+    }
+
+    showFinalPasta() {
+        // появление пасты
+        this.tweens.add({
+            targets: this.finalPasta,
+            alpha: 1,
+            scale: 1.5,
+            duration: 500,
+            ease: 'Sine.easeOut'
+        });
+
+        // тарелка красивое свечение
+        this.tweens.add({
+            targets: this.plate,
+            scale: 1.35,
+            duration: 350,
+            yoyo: true,
+            ease: 'Sine.easeInOut'
+        });
+
+        // переход
+        this.time.delayedCall(1100, () => {
+            this.cameras.main.fadeOut(600, 0, 0, 0);
+        });
+
+        this.time.delayedCall(1750, () => {
+            this.scene.start('SceneRooftop'); 
+        });
+    }
+}
+
+
+
+
+class SceneRooftop extends Phaser.Scene {
+    constructor() {
+        super('SceneRooftop');
+    }
+
+    preload() {
+        this.load.setPath('assets/');
+
+        this.load.image('roof_bg', 'rooftop_bg.png');
+
+        // персонажи
+        this.load.image('ars_sit', 'ars_sit.png');
+        this.load.image('ars_smoke', 'ars_smoke.png');
+        this.load.image('lena_sit', 'lena_sit.png');
+        this.load.image('lena_smoke', 'lena_smoke.png');
+
+        // сигареты
+        this.load.image('pack', 'marlboro_pack.png');
+        this.load.image('cig_ui', 'cig_ui.png');
+
+        // зажигалка
+        this.load.image('lighter', 'lighter.png');
+        this.load.image('lighter_fire', 'lighter_fire.png');
+    }
+
+    create() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        this.cameras.main.fadeIn(500);
+
+        // background
+        this.add.image(0, 0, 'roof_bg').setOrigin(0, 0);
+
+        //------------------------------------------------------
+        // PHASE 1 — Пачка (клик -> сразу большая сигарета)
+        //------------------------------------------------------
+        this.pack = this.add.image(W/2, H/2 + 10, 'pack')
+            .setScale(1.2)
+            .setInteractive()
+            .setDepth(10);
+
+        this.tip = this.add.text(W/2, H - 25, "CLICK PACK → TAKE A CIGARETTE", {
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            color: '#ffffff'
+        }).setOrigin(0.5).setDepth(20);
+
+        this.pack.on('pointerdown', () => {
+            this.startCigarettePhase();
+        });
+    }
+
+    //------------------------------------------------------
+    // ФАЗА 2 — Большая сигарета + зажигалка
+    //------------------------------------------------------
+    startCigarettePhase() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        // скрыть пачку
+        this.tweens.add({
+            targets: [this.pack, this.tip],
+            alpha: 0,
+            duration: 300
+        });
+
+        this.time.delayedCall(350, () => {
+            this.pack.setVisible(false);
+        });
+
+        //------------------------------------------
+        // большая сигарета UI
+        //------------------------------------------
+        this.cigUI = this.add.image(W/2, H/2 - 5, 'cig_ui')
+            .setScale(1.25)
+            .setDepth(10);
+
+        //------------------------------------------
+        // зажигалка ближе к фильтру
+        //------------------------------------------
+        this.lighter = this.add.image(W/2 + 40, H/2 + 5, 'lighter')
+    .setScale(1.05)
+    .setInteractive()
+    .setDepth(12);
+;
+
+        this.input.setDraggable(this.lighter);
+
+        this.lighter.on('drag', (pointer, x, y) => {
+            this.lighter.x = x;
+            this.lighter.y = y;
+        });
+
+        this.keys = this.input.keyboard.addKeys({
+            space: Phaser.Input.Keyboard.KeyCodes.SPACE
+        });
+
+        this.tip2 = this.add.text(W/2, H - 25, "MOVE LIGHTER → NEAR TIP AND PRESS SPACE", {
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            color: '#ffffff'
+        }).setOrigin(0.5).setDepth(20);
+
+        this.smokeStarted = false;
+
+        this.events.on('update', this.updateLighter, this);
+    }
+
+    //------------------------------------------------------
+    // Проверка — рядом ли зажигалка
+    //------------------------------------------------------
+    updateLighter() {
+    if (this.smokeStarted) return;
+
+    const tipX = this.cigUI.x + (this.cigUI.displayWidth / 2 - 10);
+    const tipY = this.cigUI.y - 2;
+
+    const dx = this.lighter.x - tipX;
+    const dy = this.lighter.y - tipY;
+
+    if (Math.sqrt(dx*dx + dy*dy) < 35 &&  // расстояние уменьшили для 64×64
+        Phaser.Input.Keyboard.JustDown(this.keys.space)
+    ) {
+        this.ignite();
+    }
+}
+
+
+    //------------------------------------------------------
+    // Зажигаем → показываем персонажей
+    //------------------------------------------------------
+    ignite() {
+        this.smokeStarted = true;
+
+        // включить огонь
+        this.lighter.setTexture('lighter_fire');
+
+        // скрыть UI
+        this.tweens.add({
+            targets: [this.cigUI, this.lighter, this.tip2],
+            alpha: 0,
+            duration: 500
+        });
+
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        this.time.delayedCall(600, () => {
+            // персонажи ниже
+            this.lena = this.add.image(W/2 - 55, H/2 + 85, 'lena_sit')
+    .setScale(1.1)
+    .setDepth(5);
+
+this.ars = this.add.image(W/2 + 55, H/2 + 95, 'ars_sit')
+    .setScale(1.1)
+    .setDepth(5);
+
+        });
+
+        // спустя секунду — smoking версии
+        this.time.delayedCall(1500, () => {
+            this.lena.setTexture('lena_smoke');
+            this.ars.setTexture('ars_smoke');
+        });
+
+        // переход дальше
+        this.time.delayedCall(3000, () => {
+            this.cameras.main.fadeOut(800);
+        });
+
+        this.time.delayedCall(4000, () => {
+            this.scene.start("SceneStarbucks"); // если будет следующая сцена
+        });
+    }
+}
+
+class SceneStarbucks extends Phaser.Scene {
+  constructor() {
+    super('SceneStarbucks');
+  }
+
+  preload() {
+    this.load.setPath('assets/');
+
+    // Фон
+    this.load.image('sb_counter', 'starbucks_counter.png');
+    this.load.image('sb_table_bg', 'sb_table_bg.png');
+
+    // Напитки
+    this.load.image('drink_americano', 'drink_americano.png');
+    this.load.image('drink_caramel', 'drink_caramel.png');
+    this.load.image('drink_coldbrew', 'drink_coldbrew.png');
+    this.load.image('drink_latte', 'drink_latte.png');
+
+    // ЖУРНАЛ
+    this.load.image('magazine_closed', 'magazine_closed.png');  
+    // обложка (как выглядит журнал сверху на столе)
+
+    // Страницы будут в SceneMagazine
+    // Латте + виски
+    this.load.image('latte_plain', 'latte_plain.png');
+    this.load.image('whiskey_latte', 'whiskey_latte.png');
+    this.load.image('jack', 'jack.png');
+    this.load.image('jack_tilt', 'jack_tilt.png');
+
+  
+    // Виски эффекты
+    // анимация выливания виски
+    this.load.image('whiskey_flow_1', 'whiskey_flow_1.png');
+    this.load.image('whiskey_flow_2', 'whiskey_flow_2.png');
+    this.load.image('whiskey_flow_3', 'whiskey_flow_3.png');
+    this.load.image('whiskey_flow_4', 'whiskey_flow_4.png');
+    this.load.image('whiskey_splash', 'whiskey_splash.png');
+
+
+    // торт 
+    this.load.image('cake_1', 'cake_1.png');
+    this.load.image('cake_2', 'cake_2.png');
+    this.load.image('cake_3', 'cake_3.png');
+
+  }
+
+  create() {
+    const W = this.game.config.width;
+    const H = this.game.config.height;
+
+    this.cameras.main.fadeIn(400);
+
+    // ---- ФОН: стойка ----
+    this.bg = this.add.image(0, 0, 'sb_counter').setOrigin(0);
+
+    // ---- ТЕКСТ ----
+    this.caption = this.add.text(W/2, 24, "CHOOSE YOUR DRINK", {
+      fontFamily: 'monospace',
+      fontSize: '15px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+
+    this.subCaption = this.add.text(W/2, 42, "FIND THE LATTE", {
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      color: '#9ca3af'
+    }).setOrigin(0.5);
+
+    // ---- НАПИТКИ ----
+    this.drinks = [];
+
+    const drinkKeys = [
+      'drink_americano',
+      'drink_caramel',
+      'drink_coldbrew',
+      'drink_latte'
+    ];
+
+    const drinkX = [W/2 - 120, W/2 - 40, W/2 + 40, W/2 + 120];
+    const drinkY = H/2 + 10;
+
+    drinkKeys.forEach((key, i) => {
+      const drink = this.add.image(drinkX[i], drinkY, key)
+        .setScale(1.0)
+        .setInteractive()
+        .setDepth(2);
+
+      // hover
+      drink.on('pointerover', () => {
+        this.tweens.add({
+          targets: drink,
+          scale: 1.15,
+          duration: 120
+        });
+      });
+
+      drink.on('pointerout', () => {
+        this.tweens.add({
+          targets: drink,
+          scale: 1.0,
+          duration: 120
+        });
+      });
+
+      drink.on('pointerdown', () => {
+        if (key === 'drink_latte') {
+          this.startTablePhase();
+        } else {
+          this.tweens.add({
+            targets: drink,
+            x: drink.x + 5,
+            yoyo: true,
+            repeat: 3,
+            duration: 60
+          });
+        }
+      });
+
+      this.drinks.push(drink);
+    });
+
+    this.inTransition = false;
+  }
+
+// ============================================================
+// ЭТАП 2 — СТОЛ + ЖУРНАЛ + ВИСКИ + ТОРТ
+// ============================================================
+startTablePhase() {
+  if (this.inTransition) return;
+  this.inTransition = true;
+
+  const W = this.game.config.width;
+  const H = this.game.config.height;
+
+  this.cameras.main.flash(200, 255, 255, 255);
+
+  // убрать напитки
+  this.drinks.forEach(d => {
+    this.tweens.add({ targets: d, alpha: 0, duration: 200 });
+  });
+
+  // смена сцены на стол
+  this.time.delayedCall(300, () => {
+    this.cameras.main.fadeOut(200);
+  });
+
+  this.time.delayedCall(600, () => {
+    this.bg.setTexture('sb_table_bg');
+    this.cameras.main.fadeIn(250);
+
+    this.caption.setText("WHISKEY LATTE");
+    this.subCaption.setText("ADD WHISKEY → STIR");
+
+    // ----- ЖУРНАЛ -----
+    this.magazine = this.add.image(W/2 + 120, H/2 + 30, 'magazine_closed')
+      .setScale(0.3)
+      .setInteractive()
+      .setDepth(5);
+
+    this.magazine.on('pointerdown', () => {
+      this.scene.pause();
+      this.scene.launch('SceneMagazine');
+    });
+
+    // ---- ЛАТТЕ ----
+    this.latte = this.add.image(W/2 - 10, H/2 + 20, 'latte_plain')
+      .setScale(1.55)
+      .setDepth(5);
+
+    // ---- ВИСКИ ----
+    this.jack = this.add.image(W/2 - 120, H/2 - 30, 'jack')
+      .setScale(1.1)
+      .setInteractive()
+      .setDepth(6);
+
+    this.input.setDraggable(this.jack);
+
+    this.pouring = false;
+    this.mixed = false;
+
+    this.jack.on('drag', (pointer, dragX, dragY) => {
+      this.jack.x = dragX;
+      this.jack.y = dragY;
+
+      const dx = this.jack.x - this.latte.x;
+      const dy = this.jack.y - (this.latte.y - 10);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      // Запуск выливания
+      if (!this.pouring && dist < 60) {
+        this.startPourAnimation();
+      }
+    });
+
+    // -------------------------------------
+    // ТОРТ (3 клика → исчезает)
+    // -------------------------------------
+    // ---- ТОРТ ----
+this.cakeStage = 1;
+
+this.cake = this.add.image(W/2 -30 , H/2 - 80, 'cake_1')
+    .setScale(0.5)
+    .setInteractive()
+    .setDepth(6);
+
+// клик → съедаем
+this.cake.on('pointerdown', () => this.eatCake());
+
+  });
+  
+}
+
+
+// ============================================================
+// ВЫЛИВАНИЕ ВИСКИ
+// ============================================================
+startPourAnimation() {
+  this.pouring = true;
+
+  // бутылка фиксируется
+  this.jack.disableInteractive();
+
+  // показать наклонённую бутылку
+  this.jack.setTexture('jack_tilt');
+
+  const targetX = this.latte.x - 45;
+  const targetY = this.latte.y - 60;
+
+  this.tweens.add({
+    targets: this.jack,
+    x: targetX,
+    y: targetY,
+    duration: 180,
+    ease: 'Sine.easeOut'
+  });
+
+  // создаём первую струю
+  const flowX = targetX + 40;  // от конца наклонённой бутылки
+  const flowY = targetY + 25;
+
+  this.flow = this.add.image(flowX, flowY, 'whiskey_flow_1')
+    .setDepth(4)
+    .setAlpha(0);
+
+  const frames = [
+    'whiskey_flow_1',
+    'whiskey_flow_2',
+    'whiskey_flow_3',
+    'whiskey_flow_4'
+  ];
+
+  let i = 0;
+
+  // плавное появление струи
+  this.tweens.add({
+    targets: this.flow,
+    alpha: 1,
+    duration: 120
+  });
+
+  // смена кадров струи
+  this.pourTimer = this.time.addEvent({
+    delay: 120,
+    repeat: 3,
+    callback: () => {
+      i++;
+      this.flow.setTexture(frames[i]);
+    }
+  });
+
+  // сплэш
+  this.time.delayedCall(520, () => {
+    this.splash = this.add.image(this.latte.x, this.latte.y - 5, 'whiskey_splash')
+      .setDepth(6)
+      .setAlpha(0)
+      .setScale(0.9);
+
+    this.tweens.add({
+      targets: this.splash,
+      alpha: 1,
+      scale: 1.1,
+      duration: 140,
+      yoyo: true,
+      onComplete: () => this.splash.destroy()
+    });
+  });
+
+  // конец анимации → финальный латте
+  this.time.delayedCall(800, () => {
+    this.flow.destroy();
+    this.finishLatte();
+  });
+}
+
+
+
+// ============================================================
+// ГОТОВЫЙ ВИСКИ ЛАТТЕ
+// ============================================================
+finishLatte() {
+  this.mixed = true;
+
+  this.tweens.add({
+    targets: this.latte,
+    scale: 1.8,
+    duration: 150,
+    yoyo: true
+  });
+
+  this.time.delayedCall(200, () => {
+    this.latte.setTexture('whiskey_latte');
+  });
+
+  this.time.delayedCall(900, () => {
+    this.cameras.main.fadeOut(700);
+  });
+
+  this.time.delayedCall(1700, () => {
+    this.scene.start('SceneBusan');
+  });
+}
+
+
+// ============================================================
+// ТОРТ: 3 НАЖАТИЯ → ПОЛНОСТЬЮ ИСЧЕЗ
+// ============================================================
+eatCake() {
+  this.cakeStage++;
+
+  if (this.cakeStage === 2) {
+    this.cake.setTexture('cake_2');
+  }
+  else if (this.cakeStage === 3) {
+    this.cake.setTexture('cake_3');
+  }
+  else if (this.cakeStage === 4) {
+    this.tweens.add({
+      targets: this.cake,
+      alpha: 0,
+      duration: 250,
+      onComplete: () => this.cake.destroy()
+    });
+  }
+}
+
+}
+
+class SceneMagazine extends Phaser.Scene {
+  constructor() {
+    super('SceneMagazine');
+  }
+
+  preload() {
+    // ВСЕ страницы лежат в /assets/magazine/
+    this.load.setPath('assets/magazine/');
+
+    // у тебя есть page_1.png ... page_6.png
+    for (let i = 1; i <= 6; i++) {
+      this.load.image(`page_${i}`, `page_${i}.png`);
+    }
+
+    // если звука нет — можно пока закомментить
+  }
+
+  create() {
+    const W = this.game.config.width;
+    const H = this.game.config.height;
+
+    // массив ключей страниц
+    this.pages = [];
+    for (let i = 1; i <= 6; i++) {
+      this.pages.push(`page_${i}`);
+    }
+    this.current = 0;
+    this.isFlipping = false;
+
+    // --- затемнённый фон ---
+    this.bg = this.add.rectangle(0, 0, W, H, 0x000000, 0.65)
+      .setOrigin(0)
+      .setDepth(5)
+      .setInteractive();
+
+    // --- картинка страницы ---
+    this.page = this.add.image(W / 2, H / 2, this.pages[this.current])
+      .setDepth(20)
+      .setScale(0.88);
+
+    // --- стрелки ---
+    this.leftArrow = this.add.text(40, H / 2, '←', {
+      fontFamily: 'monospace',
+      fontSize: '40px',
+      color: '#ffffff'
+    })
+      .setDepth(30)
+      .setInteractive();
+
+    this.rightArrow = this.add.text(W - 40, H / 2, '→', {
+      fontFamily: 'monospace',
+      fontSize: '40px',
+      color: '#ffffff'
+    })
+      .setDepth(30)
+      .setInteractive();
+
+    // --- крестик закрытия ---
+    this.closeBtn = this.add.text(W - 24, 24, '✕', {
+      fontFamily: 'monospace',
+      fontSize: '26px',
+      color: '#ffffff'
+    })
+      .setDepth(40)
+      .setInteractive();
+
+    // Клики по стрелкам
+    this.leftArrow.on('pointerdown', () => this.flipPage(-1));
+    this.rightArrow.on('pointerdown', () => this.flipPage(1));
+
+    // Клик по фону / крестику — закрыть
+    this.bg.on('pointerdown', () => this.close());
+    this.closeBtn.on('pointerdown', () => this.close());
+
+    // Клавиши ← → и ESC
+    this.input.keyboard.on('keydown-LEFT', () => this.flipPage(-1));
+    this.input.keyboard.on('keydown-RIGHT', () => this.flipPage(1));
+    this.input.keyboard.on('keydown-ESC', () => this.close());
+  }
+
+  flipPage(dir) {
+    if (this.isFlipping) return;
+    this.isFlipping = true;
+
+    // если звука нет — закомментируй
+    if (this.sound.get('flip')) this.sound.play('flip', { volume: 0.6 });
+
+    // сначала "закрываем" страницу по X
+    this.tweens.add({
+      targets: this.page,
+      scaleX: 0,
+      duration: 140,
+      ease: 'Quad.easeIn',
+      onComplete: () => {
+        // смена номера страницы
+        this.current += dir;
+        const n = this.pages.length;
+        if (this.current < 0) this.current = n - 1;
+        if (this.current >= n) this.current = 0;
+
+        this.page.setTexture(this.pages[this.current]);
+
+        // снова раскрываем
+        this.tweens.add({
+          targets: this.page,
+          scaleX: 0.88,
+          duration: 160,
+          ease: 'Quad.easeOut',
+          onComplete: () => {
+            this.isFlipping = false;
+          }
+        });
+      }
+    });
+  }
+
+  close() {
+    const W = this.game.config.width;
+    const H = this.game.config.height;
+
+    this.tweens.add({
+      targets: [this.page, this.bg, this.leftArrow, this.rightArrow, this.closeBtn],
+      alpha: 0,
+      duration: 220,
+      onComplete: () => {
+        this.scene.stop();               // остановить журнал
+        this.scene.resume('SceneStarbucks'); // вернуться к Старбаксу
+      }
+    });
+  }
+}
+
+
+
+
+
+
+class SceneBusan extends Phaser.Scene {
+    constructor() { super('SceneBusan'); }
+
+    preload() {
+        this.load.setPath('assets/');
+        this.load.image('busan_bg', 'busan_bg.png');
+
+        // сидячие персонажи
+        this.load.image('ars_sit', 'ars_sit.png');
+        this.load.image('lena_sit', 'lena_sit.png');
+    }
+
+    create() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        this.cameras.main.fadeIn(800);
+
+        // ------------------------------------
+        // STATIC BACKGROUND (NO MOVEMENT)
+        // ------------------------------------
+        this.bg = this.add.image(0, 0, 'busan_bg')
+            .setOrigin(0, 0);
+
+        // ------------------------------------
+        // CHARACTERS (опущены ниже, как просил)
+        // ------------------------------------
+        this.lena = this.add.image(W/2 - 80, H/2 + 72, 'lena_sit')
+
+            .setScale(1.1)
+            .setDepth(5);
+
+this.ars  = this.add.image(W/2 - 5,  H/2 + 72, 'ars_sit')
+            .setScale(1.1)
+            .setDepth(5);
+
+        // ------------------------------------
+        // TEXT
+        // ------------------------------------
+        this.text = this.add.text(W/2, H - 25, "SPACE → END", {
+            fontFamily: 'monospace',
+            fontSize: '16px',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+
+        // 👉 УБРАНО ДВИЖЕНИЕ ФОНА
+        // (вся секция soft clouds movement удалена)
+
+        this.keys = this.input.keyboard.addKeys({
+            space: Phaser.Input.Keyboard.KeyCodes.SPACE
+        });
+    }
+
+    update() {
+        if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
+            this.startFinale();
+        }
+    }
+
+    startFinale() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        // hide prompt
+        this.tweens.add({
+            targets: this.text,
+            alpha: 0,
+            duration: 400
+        });
+
+        // message
+        this.title = this.add.text(W/2, H/2 - 40,
+            "Лена я безумно счастлив что встретил тебя, я этот месяц был невероятный благодаря тебе и спасибо тебе за все моменты вместе!",
+            {
+                fontFamily: 'monospace',
+                fontSize: '20px',
+                color: '#ffffff',
+                align: 'center',
+                wordWrap: { width: W - 40 }
+            }
+        ).setOrigin(0.5).setAlpha(0);
+
+        this.tweens.add({
+            targets: this.title,
+            alpha: 1,
+            duration: 1200
+        });
+
+        // fade out finale
+        this.time.delayedCall(3200, () => {
+            this.cameras.main.fadeOut(1500, 0, 0, 0);
+        });
+
+        // return to intro
+        this.time.delayedCall(5000, () => {
+            this.scene.start('SceneIntro');
+        });
+    }
+}
+
+
+
+
+ const config = {
+  type: Phaser.AUTO,
+  width: 480,
+  height: 270,
+  zoom: 1,
+  backgroundColor: '#05070c',
+  pixelArt: true,
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH
+  },
+  scene: [
+    SceneIntro,
+    SceneGangnamRain,
+    SceneCamera,
+    SceneCinema,
+    SceneStarbucks,
+    SceneMagazine,   // вот эта
+    ScenePasta,
+    SceneRooftop,
+    SceneBusan
+]
+
+};
+
+new Phaser.Game(config);
+
+
+</script>
+</body>
+</html>
