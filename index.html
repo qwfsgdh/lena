@@ -25,6 +25,7 @@
   // Базовые настройки игры
   const GAME_WIDTH = 320;
   const GAME_HEIGHT = 180;
+  const kitchenProgress = { pasta: false, wine: false, salad: false };
 
   class SceneIntro extends Phaser.Scene {
     constructor() {
@@ -520,11 +521,539 @@ class SceneCinema extends Phaser.Scene {
 
         // переход
         this.time.delayedCall(1500, () => {
-            this.scene.start("ScenePasta");
+            this.scene.start("ScenePuzzle");
         });
     }
 }
 
+
+class SceneRollingPasta extends Phaser.Scene {
+    constructor() { super('SceneRollingPasta'); }
+
+    preload() {
+        this.load.setPath('assets/');
+        this.load.image('rolling_bg', 'rolling_bg.png');
+        this.load.image('e_menu', 'e_menu.png');
+        this.load.image('pasta_final', 'pasta_final.png');
+        this.load.image('wine_glass_withwine', 'wine_glass_withwine.png');
+        this.load.image('salad_final', 'salad_final.png');
+    }
+
+    create() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        this.cameras.main.fadeIn(300);
+
+        this.add.image(0, 0, 'rolling_bg').setOrigin(0);
+
+        this.menu = this.add.image(W / 2 + 1, H / 2 - 40, 'e_menu')
+            .setScale(0.5)
+            .setInteractive()
+            .on('pointerdown', () => {
+                this.scene.pause();
+                this.scene.launch('SceneDishMenu');
+            });
+
+        this.prompt = this.add.text(W / 2, H - 20, 'CLICK E-MENU → CHOOSE DISH', {
+            fontFamily: 'monospace',
+            fontSize: '13px',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+
+        this.keys = this.input.keyboard.addKeys({
+            space: Phaser.Input.Keyboard.KeyCodes.SPACE
+        });
+
+        this.dishGroup = this.add.group();
+        this.refreshDishes();
+
+        this.events.on('wake', () => {
+            this.cameras.main.fadeIn(200);
+            this.refreshDishes();
+        });
+    }
+
+    refreshDishes() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        this.dishGroup.clear(true, true);
+
+        if (kitchenProgress.pasta) {
+            this.dishGroup.add(
+                this.add.image(W / 2 - 70, H / 2 - 32, 'pasta_final')
+                    .setScale(1.0)
+            );
+        }
+
+        if (kitchenProgress.wine) {
+            this.dishGroup.add(
+                this.add.image(W / 2, H / 2 - 34, 'wine_glass_withwine')
+                    .setScale(0.28) // было 0.85, в 3 раза меньше
+            );
+        }
+
+        if (kitchenProgress.salad) {
+            this.dishGroup.add(
+                this.add.image(W / 2 + 75, H / 2 - 24, 'salad_final')
+                    .setScale(0.7)
+            );
+        }
+
+        const ready = kitchenProgress.pasta && kitchenProgress.wine && kitchenProgress.salad;
+        this.prompt.setText(ready ? 'SPACE — CONTINUE' : 'CLICK E-MENU → CHOOSE DISH');
+        this.readyToContinue = ready;
+    }
+
+    update() {
+        if (this.readyToContinue && Phaser.Input.Keyboard.JustDown(this.keys.space)) {
+            this.cameras.main.fadeOut(300);
+            this.time.delayedCall(320, () => this.scene.start('SceneRooftop'));
+        }
+    }
+}
+
+
+class SceneDishMenu extends Phaser.Scene {
+    constructor() { super('SceneDishMenu'); }
+
+    preload() {
+        this.load.setPath('assets/');
+        this.load.image('menu_screen', 'menu_screen.png');
+    }
+
+    create() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        this.cameras.main.fadeIn(200);
+
+        this.add.image(0, 0, 'menu_screen').setOrigin(0);
+
+        const zones = [
+            // Pasta: x 100..200, y 14..230
+            { key: 'SceneCookPasta', x: 150, y: 122, w: 100, h: 216 },
+            // Wine:  x 217..330, y 14..230
+            { key: 'SceneWine',      x: 273.5, y: 122, w: 113, h: 216 },
+            // Salad: x 352..452, y 14..230
+            { key: 'SceneSalad',     x: 402, y: 122, w: 100, h: 216 }
+        ];
+
+        zones.forEach(zone => {
+            this.add.zone(zone.x, zone.y, zone.w, zone.h)
+                .setOrigin(0.5)
+                .setInteractive()
+                .on('pointerdown', () => this.selectDish(zone.key));
+        });
+    }
+
+    selectDish(sceneKey) {
+        this.cameras.main.fadeOut(200);
+        this.time.delayedCall(220, () => {
+            this.scene.stop();
+            this.scene.launch(sceneKey);
+        });
+    }
+}
+
+
+class SceneCookPasta extends Phaser.Scene {
+    constructor() { super('SceneCookPasta'); }
+
+    preload() {
+        this.load.setPath('assets/');
+        this.load.image('rolling_bg', 'rolling_bg.png');
+        this.load.image('pasta_plate', 'pasta_plate.png');
+        this.load.image('pasta_final', 'pasta_final.png');
+        this.load.image('ingredient_pasta', 'ingredient_pasta.png');
+        this.load.image('ingredient_tomato', 'ingredient_tomato.png');
+        this.load.image('ingredient_basil', 'ingredient_basil.png');
+        this.load.image('ingredient_cheese', 'ingredient_cheese.png');
+        this.load.image('solt', 'solt.png');
+        this.load.image('paper', 'paper.png');
+    }
+
+    create() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        this.cameras.main.fadeIn(200);
+        this.add.image(0, 0, 'rolling_bg').setOrigin(0);
+
+        this.plate = this.add.image(W / 2, H / 2 - 20, 'pasta_plate')
+            .setScale(0.65);
+
+        this.ingredients = [
+            { key: 'ingredient_pasta',  x: W / 2 - 150, y: H / 2 - 60 },
+            { key: 'ingredient_tomato', x: W / 2 + 150, y: H / 2 - 60 },
+            { key: 'ingredient_basil',  x: W / 2 - 150, y: H / 2 + 10 },
+            { key: 'ingredient_cheese', x: W / 2 + 150, y: H / 2 + 10 },
+            { key: 'solt',              x: W / 2 - 70,  y: H / 2 + 70 },
+            { key: 'paper',             x: W / 2 + 70,  y: H / 2 + 70 }
+        ];
+
+        this.addedCount = 0;
+        this.totalNeed = this.ingredients.length;
+
+        this.ingredients.forEach(item => {
+            const sprite = this.add.image(item.x, item.y, item.key)
+                .setInteractive()
+                .setData('added', false);
+
+            this.input.setDraggable(sprite);
+
+            sprite.on('drag', (pointer, dragX, dragY) => {
+                if (sprite.getData('added')) return;
+                sprite.x = dragX;
+                sprite.y = dragY;
+            });
+
+            sprite.on('dragend', () => {
+                if (sprite.getData('added')) return;
+
+                const dist = Phaser.Math.Distance.Between(sprite.x, sprite.y, this.plate.x, this.plate.y);
+                if (dist < 60) {
+                    sprite.setData('added', true);
+                    this.tweens.add({
+                        targets: sprite,
+                        alpha: 0,
+                        duration: 200,
+                        onComplete: () => sprite.destroy()
+                    });
+                    this.addedCount++;
+                    if (this.addedCount >= this.totalNeed) {
+                        this.finishPasta();
+                    }
+                }
+            });
+        });
+    }
+
+    finishPasta() {
+        this.plate.setTexture('pasta_final');
+        this.tweens.add({
+            targets: this.plate,
+            scale: 1.4,
+            duration: 250,
+            yoyo: true
+        });
+
+        // Фиксируем готовность только пасты, остальные блюда появятся после их приготовления
+        kitchenProgress.pasta = true;
+
+        this.time.delayedCall(600, () => {
+            this.cameras.main.fadeOut(300);
+        });
+
+        this.time.delayedCall(1000, () => {
+            const rolling = this.scene.get('SceneRollingPasta');
+            if (rolling) {
+                rolling.scene.resume();
+                rolling.refreshDishes();
+            } else {
+                this.scene.launch('SceneRollingPasta');
+            }
+            this.scene.stop();
+        });
+    }
+}
+
+
+class SceneWine extends Phaser.Scene {
+    constructor() { super('SceneWine'); }
+
+    preload() {
+        this.load.setPath('assets/');
+        this.load.image('rolling_bg', 'rolling_bg.png');
+        this.load.image('wine_bottle', 'wine_bottle.png');
+        this.load.image('wine_glass', 'wine_glass.png');
+        this.load.image('wine_glass_withwine', 'wine_glass_withwine.png');
+    }
+
+    create() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        this.cameras.main.fadeIn(200);
+
+        this.add.image(0, 0, 'rolling_bg').setOrigin(0);
+
+        this.glass = this.add.image(W / 2 + 40, H / 2 + 30, 'wine_glass')
+            .setScale(0.6);
+
+        this.bottle = this.add.image(W / 2 - 40, H / 2 - 20, 'wine_bottle')
+            .setScale(0.7)
+            .setInteractive();
+
+        this.input.setDraggable(this.bottle);
+
+        this.bottle.on('drag', (pointer, dragX, dragY) => {
+            this.bottle.x = dragX;
+            this.bottle.y = dragY;
+        });
+
+        this.bottle.on('dragend', () => {
+            const dist = Phaser.Math.Distance.Between(this.bottle.x, this.bottle.y, this.glass.x, this.glass.y - 30);
+            if (dist < 40) {
+                this.fillGlass();
+            }
+        });
+    }
+
+    fillGlass() {
+        this.glass.setTexture('wine_glass_withwine');
+        kitchenProgress.wine = true;
+
+        this.tweens.add({
+            targets: this.glass,
+            scale: 1.3,
+            duration: 200,
+            yoyo: true
+        });
+
+        this.time.delayedCall(500, () => {
+            this.cameras.main.fadeOut(250);
+        });
+
+        this.time.delayedCall(900, () => {
+            const rolling = this.scene.get('SceneRollingPasta');
+            if (rolling) {
+                rolling.scene.resume();
+                rolling.refreshDishes();
+            } else {
+                this.scene.launch('SceneRollingPasta');
+            }
+            this.scene.stop();
+        });
+    }
+}
+
+
+class SceneSalad extends Phaser.Scene {
+    constructor() { super('SceneSalad'); }
+
+    preload() {
+        this.load.setPath('assets/');
+        this.load.image('rolling_bg', 'rolling_bg.png');
+        this.load.image('salad_final', 'salad_final.png');
+    }
+
+    create() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        this.cameras.main.fadeIn(200);
+        this.add.image(0, 0, 'rolling_bg').setOrigin(0);
+
+        const salad = this.add.image(W / 2, H / 2 - 40, 'salad_final')
+            .setScale(0.6)
+            .setAlpha(0);
+
+        this.tweens.add({
+            targets: salad,
+            alpha: 1,
+            duration: 400
+        });
+
+        kitchenProgress.salad = true;
+
+        this.time.delayedCall(700, () => {
+            this.cameras.main.fadeOut(250);
+        });
+
+        this.time.delayedCall(1100, () => {
+            const rolling = this.scene.get('SceneRollingPasta');
+            if (rolling) {
+                rolling.scene.resume();
+                rolling.refreshDishes();
+            } else {
+                this.scene.launch('SceneRollingPasta');
+            }
+            this.scene.stop();
+        });
+    }
+}
+
+
+class ScenePuzzle extends Phaser.Scene {
+  constructor() {
+    super('ScenePuzzle');
+  }
+
+  preload() {
+    this.load.setPath('assets/puzzle/');
+        this.load.image('puzzle_full', 'puzzle_full.png');
+    for (let i = 1; i <= 11; i++) {
+            this.load.image(`puzzle_${i}`, `puzzle_${i}.png`);
+    }
+  }
+
+  create() {
+    const W = this.game.config.width;
+    const H = this.game.config.height;
+
+    this.cameras.main.fadeIn(400);
+
+        // фон + полупрозрачный референс постера
+        this.add.rectangle(0, 0, W, H, 0x05070c, 1).setOrigin(0);
+        this.add.image(0, 0, 'puzzle_full')
+            .setOrigin(0)
+            .setAlpha(0.32);
+
+        this.targets = [
+            { key: 'puzzle_1',  x: 70,  y: 175 },
+            { key: 'puzzle_2',  x: 1,   y: 1   },
+            { key: 'puzzle_3',  x: 375, y: 1   },
+            { key: 'puzzle_4',  x: 1,   y: 141 },
+            { key: 'puzzle_5',  x: 1,   y: 69  },
+            { key: 'puzzle_6',  x: 375, y: 98 },
+            { key: 'puzzle_7',  x: 288, y: 173 },
+            { key: 'puzzle_8',  x: 222, y: 140 },
+            { key: 'puzzle_9',  x: 270, y: 1  },
+            { key: 'puzzle_10', x: 129, y: 1   },
+            { key: 'puzzle_11', x: 122, y: 70  }
+        ];
+
+        // лёгкие рамки по позициям целевых слотов
+        const outlines = this.add.graphics();
+        outlines.lineStyle(1, 0xffffff, 0.18);
+        this.targets.forEach(t => {
+            const tex = this.textures.get(t.key).getSourceImage();
+            outlines.strokeRect(t.x, t.y, tex.width, tex.height);
+        });
+
+    this.placed = 0;
+
+        this.title = this.add.text(W / 2, 20, 'СОБЕРИ ПАЗЛ', {
+            fontFamily: 'monospace',
+            fontSize: '16px',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+
+        this.sub = this.add.text(W / 2, 38, 'перетаскивай кусочки на правильные места', {
+            fontFamily: 'monospace',
+            fontSize: '11px',
+            color: '#d1d5db'
+        }).setOrigin(0.5);
+
+        this.progress = this.add.text(W / 2, H - 20, '0 / 11', {
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+
+        this.createPieces();
+    }
+
+    createPieces() {
+        const W = this.game.config.width;
+        const H = this.game.config.height;
+
+        // стартовые точки — рандом по полю, но с отступом от правильной позиции
+        this.targets.forEach((t, idx) => {
+            const tex = this.textures.get(t.key).getSourceImage();
+            const maxX = Math.max(8, W - tex.width - 8);
+            const maxY = Math.max(8, H - tex.height - 8);
+
+            let startX = Phaser.Math.Between(8, maxX);
+            let startY = Phaser.Math.Between(8, maxY);
+
+            const dist = Phaser.Math.Distance.Between(startX, startY, t.x, t.y);
+            if (dist < 80) {
+                startX = Phaser.Math.Between(8, maxX);
+                startY = Phaser.Math.Between(Math.max(8, maxY - 20), maxY);
+            }
+
+            const piece = this.add.image(startX, startY, t.key)
+                .setOrigin(0)
+                .setInteractive({ pixelPerfect: true });
+
+            piece.setData('target', t);
+            piece.setData('placed', false);
+
+      this.input.setDraggable(piece);
+
+      // drag
+      piece.on('drag', (pointer, dragX, dragY) => {
+                if (piece.getData('placed')) return;
+          piece.x = dragX;
+          piece.y = dragY;
+                piece.setDepth(20);
+      });
+
+            piece.on('dragend', () => {
+                if (piece.getData('placed')) return;
+
+                const target = piece.getData('target');
+                const dx = piece.x - target.x;
+                const dy = piece.y - target.y;
+                const snapDistance = 4; // ужесточили порог по расстоянию
+
+                // площадь пересечения с целевым слотом — если больше половины, тоже снэпим
+                const w = piece.width;
+                const h = piece.height;
+                const overlapW = Math.max(0, Math.min(piece.x + w, target.x + w) - Math.max(piece.x, target.x));
+                const overlapH = Math.max(0, Math.min(piece.y + h, target.y + h) - Math.max(piece.y, target.y));
+                const overlapArea = overlapW * overlapH;
+                const targetArea = w * h;
+
+                const overlapRatio = overlapArea / targetArea;
+
+                if (Math.sqrt(dx * dx + dy * dy) <= snapDistance || overlapRatio > 0.90) {
+                    this.snapPiece(piece, target);
+                } else {
+                    piece.setDepth(5);
+                }
+            });
+    });
+  }
+
+    snapPiece(piece, target) {
+        piece.setData('placed', true);
+        piece.disableInteractive();
+
+    this.tweens.add({
+      targets: piece,
+            x: target.x,
+            y: target.y,
+            scaleX: 1.02,
+            scaleY: 1.02,
+            duration: 140,
+            yoyo: true,
+            onComplete: () => {
+                piece.setDepth(5);
+            }
+    });
+
+    this.placed++;
+        this.progress.setText(`${this.placed} / ${this.targets.length}`);
+
+        if (this.placed >= this.targets.length) {
+            this.finishPuzzle();
+    }
+  }
+
+    finishPuzzle() {
+        this.cameras.main.flash(250, 255, 255, 255);
+
+    this.tweens.add({
+            targets: [this.title, this.sub],
+            alpha: 0,
+            duration: 200
+        });
+
+        this.progress.setText('ГОТОВО!');
+
+        this.time.delayedCall(800, () => {
+            this.cameras.main.fadeOut(700);
+        });
+
+        this.time.delayedCall(1600, () => {
+            this.scene.start('SceneRollingPasta');
+        });
+    }
+}
 
 
 
@@ -828,7 +1357,7 @@ class SceneRooftop extends Phaser.Scene {
     .setScale(1.1)
     .setDepth(5);
 
-this.ars = this.add.image(W/2 + 55, H/2 + 95, 'ars_sit')
+this.ars = this.add.image(W/2 + 55, H/2 + 88, 'ars_sit')
     .setScale(1.1)
     .setDepth(5);
 
@@ -1407,7 +1936,7 @@ this.ars  = this.add.image(W/2 - 5,  H/2 + 72, 'ars_sit')
 
         // message
         this.title = this.add.text(W/2, H/2 - 40,
-            "Лена я безумно счастлив что встретил тебя, я этот месяц был невероятный благодаря тебе и спасибо тебе за все моменты вместе!",
+            "Лена, я безумно счастлив, что встретил тебя. Этот месяц был невероятным благодаря тебе. Спасибо за каждый момент, который мы провели вместе.",
             {
                 fontFamily: 'monospace',
                 fontSize: '20px',
@@ -1454,11 +1983,17 @@ this.ars  = this.add.image(W/2 - 5,  H/2 + 72, 'ars_sit')
     SceneGangnamRain,
     SceneCamera,
     SceneCinema,
-    SceneStarbucks,
-    SceneMagazine,   // вот эта
+    ScenePuzzle,
     ScenePasta,
     SceneRooftop,
-    SceneBusan
+    SceneStarbucks,
+    SceneMagazine,   // вот эта
+    SceneBusan,
+    SceneRollingPasta,
+    SceneDishMenu,
+    SceneCookPasta,
+    SceneWine,
+    SceneSalad
 ]
 
 };
